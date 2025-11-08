@@ -1,0 +1,24 @@
+# Code Owners - Embedding Recommender SaaS
+
+# Backend API
+/backend-api/ @team-backend
+
+# ML Engine
+/ml-engine/ @team-ml @team-backend
+
+# Data Pipeline
+/data-pipeline/ @team-data @team-ml
+
+# Frontend
+/frontend/ @team-frontend
+/backoffice/ @team-frontend
+
+# Infrastructure
+/infrastructure/ @team-devops
+/control-plane/ @team-devops
+/observability/ @team-devops
+/docker-compose.yml @team-devops
+
+# Documentation
+/docs/ @team-leads
+README.md @team-leads

@@ -1,0 +1,220 @@
+groups:
+  - name: critical_alerts
+    interval: 30s
+    rules:
+      # Service Availability Alerts
+      - alert: ServiceDown
+        expr: up{job=~"backend-api|ml-engine|data-pipeline|postgres|redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: zeta
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} has been unreachable for more than 1 minute"
+          dashboard: "http://grafana:3000/d/service-health"
+
+      # High Error Rate Alert
+      - alert: HighErrorRate
+        expr: |
+          (
+            rate(http_requests_total{status=~"5.."}[5m]) /
+            (rate(http_requests_total[5m]) + 0.0001)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: zeta
+        annotations:
+          summary: "High error rate (>5%) detected for {{ $labels.service }}"
+          description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.service }}/{{ $labels.endpoint }}"
+          dashboard: "http://grafana:3000/d/api-performance"
+
+      # High Latency Alert
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (service, le)
+          ) > 1.0
+        for: 10m
+        labels:
+          severity: critical
+          team: zeta
+        annotations:
+          summary: "High p95 latency detected for {{ $labels.service }}"
+          description: "p95 latency is {{ $value | humanizeDuration }} for {{ $labels.service }}"
+          dashboard: "http://grafana:3000/d/api-performance"
+
+      # Database Down Alert
+      - alert: DatabaseDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: zeta
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "PostgreSQL instance at {{ $labels.instance }} is unreachable"
+          runbook: "https://wiki.example.com/runbooks/postgres-down"
+
+      # Redis Down Alert
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: zeta
+        annotations:
+          summary: "Redis cache is down"
+          description: "Redis instance at {{ $labels.instance }} is unreachable"
+          impact: "Cache operations will fail; requests may be slow"
+
+      # ML Engine Processing Failure
+      - alert: MLEngineHighErrorRate
+        expr: |
+          rate(ml_engine_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          team: zeta
+        annotations:
+          summary: "ML Engine error rate is high"
+          description: "ML Engine error rate is {{ $value }} errors/sec"
+          dashboard: "http://grafana:3000/d/ml-engine"
+
+  - name: warning_alerts
+    interval: 60s
+    rules:
+      # High Memory Usage Alert
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            container_memory_usage_bytes /
+            (container_spec_memory_limit_bytes + 0.001)
+          ) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          team: zeta
+        annotations:
+          summary: "High memory usage (>85%) on {{ $labels.pod_name }}"
+          description: "Memory usage is {{ $value | humanizePercentage }} on {{ $labels.pod_name }}"
+
+      # High CPU Usage Alert
+      - alert: HighCPUUsage
+        expr: |
+          rate(container_cpu_usage_seconds_total[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          team: zeta
+        annotations:
+          summary: "High CPU usage (>80%) on {{ $labels.pod_name }}"
+          description: "CPU usage is {{ $value | humanizePercentage }} on {{ $labels.pod_name }}"
+
+      # Low Disk Space Alert
+      - alert: DiskSpaceLow
+        expr: |
+          (
+            node_filesystem_avail_bytes /
+            node_filesystem_size_bytes
+          ) < 0.15
+        for: 5m
+        labels:
+          severity: warning
+          team: zeta
+        annotations:
+          summary: "Low disk space (<15%) on {{ $labels.device }}"
+          description: "Available space is {{ $value | humanizePercentage }} on {{ $labels.device }}"
+
+      # Cache Hit Rate Low
+      - alert: CacheHitRateLow
+        expr: |
+          (
+            rate(cache_hits_total[5m]) /
+            (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m]) + 0.0001)
+          ) < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          team: zeta
+        annotations:
+          summary: "Cache hit rate is low (<70%)"
+          description: "Cache hit rate is {{ $value | humanizePercentage }}"
+          impact: "Higher latency and load on primary systems"
+
+      # Model Training Failed
+      - alert: ModelTrainingFailed
+        expr: increase(training_job_failures_total[1h]) > 0
+        labels:
+          severity: warning
+          team: zeta
+        annotations:
+          summary: "Model training job failed for tenant {{ $labels.tenant_id }}"
+          description: "Training job {{ $labels.job_id }} failed"
+          dashboard: "http://grafana:3000/d/ml-engine"
+
+      # API Rate Limit Being Hit
+      - alert: HighRateLimitExceeded
+        expr: |
+          rate(api_requests_rate_limited_total[5m]) > 10
+        for: 10m
+        labels:
+          severity: warning
+          team: zeta
+        annotations:
+          summary: "High API rate limiting for {{ $labels.tenant_id }}"
+          description: "{{ $value }} requests/sec being rate limited"
+
+      # Embedding Cache Stale
+      - alert: EmbeddingCacheStale
+        expr: |
+          (
+            time() - embedding_cache_last_update_timestamp{job="ml-engine"}
+          ) > 3600
+        labels:
+          severity: warning
+          team: zeta
+        annotations:
+          summary: "Embedding cache is stale (>1h old)"
+          description: "Last cache update was {{ $value | humanizeDuration }} ago"
+
+      # Data Pipeline Processing Lag
+      - alert: DataPipelineProcessingLag
+        expr: |
+          (
+            kafka_consumer_lag{job="data-pipeline"}
+          ) > 10000
+        for: 10m
+        labels:
+          severity: warning
+          team: zeta
+        annotations:
+          summary: "Data pipeline has high processing lag (>10k messages)"
+          description: "Consumer lag is {{ $value }} messages on {{ $labels.topic }}"
+          impact: "Data processing is falling behind; recommendations may be stale"
+
+      # ETL Job Failures
+      - alert: ETLJobFailure
+        expr: increase(etl_job_failures_total{job="data-pipeline"}[1h]) > 0
+        labels:
+          severity: warning
+          team: zeta
+        annotations:
+          summary: "ETL job failure detected"
+          description: "ETL job {{ $labels.job_name }} failed {{ $value }} times in the last hour"
+          dashboard: "http://grafana:3000/d/data-pipeline"
+
+  - name: info_alerts
+    interval: 300s
+    rules:
+      # Prometheus target down (not scraping)
+      - alert: PrometheusTargetDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: info
+          team: zeta
+        annotations:
+          summary: "Prometheus target {{ $labels.job }} is down"
+          description: "Target {{ $labels.instance }} hasn't been scraped for 5 minutes"

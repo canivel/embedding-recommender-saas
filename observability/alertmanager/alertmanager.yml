@@ -1,0 +1,129 @@
+global:
+  resolve_timeout: 5m
+  slack_api_url: '${SLACK_WEBHOOK_URL:-http://localhost}'
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+
+# Template files for formatting alerts
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Routing tree with different receivers for different severity levels
+route:
+  receiver: 'slack-default'
+  group_by: ['alertname', 'service', 'instance']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  routes:
+    # Critical severity: page immediately via PagerDuty
+    - match:
+        severity: critical
+      receiver: 'pagerduty-oncall'
+      repeat_interval: 5m
+      routes:
+        # Further routing for specific services
+        - match:
+            team: zeta
+          receiver: 'slack-zeta-critical'
+          continue: true
+
+    # Warning severity: Slack notification
+    - match:
+        severity: warning
+      receiver: 'slack-engineering'
+      repeat_interval: 1h
+
+    # Info severity: No notification (just stored)
+    - match:
+        severity: info
+      receiver: 'null'
+      repeat_interval: 24h
+
+# Receivers define where alerts are sent
+receivers:
+  # PagerDuty integration for critical alerts
+  - name: 'pagerduty-oncall'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SERVICE_KEY:-your-key}'
+        description: '{{ .GroupLabels.alertname }}'
+        details:
+          firing: '{{ template "pagerduty.default.instances" .Alerts.Firing }}'
+        client: 'Prometheus'
+        client_url: 'http://prometheus:9090'
+
+  # Slack notifications for critical alerts from team Zeta
+  - name: 'slack-zeta-critical'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL:-http://localhost}'
+        channel: '#zeta-critical-alerts'
+        title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        text: |
+          Service: {{ .GroupLabels.service }}
+          Instance: {{ .GroupLabels.instance }}
+          {{ range .Alerts.Firing }}
+          • {{ .Annotations.summary }}
+            {{ .Annotations.description }}
+          {{ end }}
+        actions:
+          - type: button
+            text: 'View in Grafana'
+            url: 'http://grafana:3000/d/{{ .GroupLabels.service }}'
+          - type: button
+            text: 'View Alert Rules'
+            url: 'http://prometheus:9090/alerts'
+
+  # Slack notifications for warning alerts
+  - name: 'slack-engineering'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL:-http://localhost}'
+        channel: '#engineering-alerts'
+        title: '⚠️ WARNING: {{ .GroupLabels.alertname }}'
+        text: |
+          Service: {{ .GroupLabels.service }}
+          {{ range .Alerts.Firing }}
+          • {{ .Annotations.summary }}
+          {{ end }}
+        actions:
+          - type: button
+            text: 'View Dashboard'
+            url: 'http://grafana:3000/d/service-health'
+
+  # Default Slack receiver
+  - name: 'slack-default'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL:-http://localhost}'
+        channel: '#general-alerts'
+        title: '{{ .GroupLabels.alertname }}'
+        text: 'Service: {{ .GroupLabels.service }}'
+
+  # Null receiver: silently discard alerts (no notification)
+  - name: 'null'
+
+# Inhibition rules suppress alerts under certain conditions
+inhibit_rules:
+  # Don't alert on high memory if service is already down
+  - source_match:
+      severity: 'critical'
+      alertname: 'ServiceDown'
+    target_match:
+      severity: 'warning'
+      alertname: 'HighMemoryUsage'
+    equal: ['service', 'instance']
+
+  # Don't alert on high latency if service is down
+  - source_match:
+      severity: 'critical'
+      alertname: 'ServiceDown'
+    target_match:
+      severity: 'critical'
+      alertname: 'HighLatencyP95'
+    equal: ['service', 'instance']
+
+  # Don't alert on high error rate if database is down
+  - source_match:
+      severity: 'critical'
+      alertname: 'DatabaseDown'
+    target_match:
+      severity: 'critical'
+      alertname: 'HighErrorRate'
+    equal: ['service']

@@ -1,0 +1,42 @@
+version: 2
+updates:
+  # Backend API (Python/UV)
+  - package-ecosystem: "pip"
+    directory: "/backend-api"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # ML Engine (Python/UV)
+  - package-ecosystem: "pip"
+    directory: "/ml-engine"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # Data Pipeline (Python/UV)
+  - package-ecosystem: "pip"
+    directory: "/data-pipeline"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # Frontend (npm)
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # Back Office (npm)
+  - package-ecosystem: "npm"
+    directory: "/backoffice"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

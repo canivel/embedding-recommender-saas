@@ -1,0 +1,180 @@
+---
+# Service Account for Airflow to manage ML jobs
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: airflow
+  namespace: ml-jobs
+---
+# Role for Airflow to create and manage pods
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: airflow-worker
+  namespace: ml-jobs
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list"]
+---
+# RoleBinding for Airflow service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: airflow-worker
+  namespace: ml-jobs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: airflow-worker
+subjects:
+  - kind: ServiceAccount
+    name: airflow
+    namespace: ml-jobs
+---
+# Service Account for backend API
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backend-api
+  namespace: production
+---
+# Service Account for ML engine
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ml-engine
+  namespace: production
+---
+# Service Account for frontend
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: frontend
+  namespace: production
+---
+# ClusterRole for reading ConfigMaps and Secrets (limited)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: config-reader
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+---
+# RoleBinding for backend-api to read configs
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backend-api-config-reader
+  namespace: production
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: config-reader
+subjects:
+  - kind: ServiceAccount
+    name: backend-api
+    namespace: production
+---
+# RoleBinding for ml-engine to read configs
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ml-engine-config-reader
+  namespace: production
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: config-reader
+subjects:
+  - kind: ServiceAccount
+    name: ml-engine
+    namespace: production
+---
+# Network Policy: Restrict traffic to production namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: production-ingress
+  namespace: production
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from ingress controller
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Allow inter-service communication within namespace
+    - from:
+      - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 50051
+  egress:
+    # Allow DNS
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow PostgreSQL
+    - to:
+      - podSelector:
+          matchLabels:
+            app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Allow Redis
+    - to:
+      - podSelector:
+          matchLabels:
+            app: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Allow external HTTPS (for S3, etc.)
+    - to:
+      - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# Network Policy: ML jobs can access everything they need
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ml-jobs-egress
+  namespace: ml-jobs
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # Allow all egress for ML jobs (they need S3, databases, etc.)
+    - to:
+      - namespaceSelector: {}
+    - to:
+      - podSelector: {}

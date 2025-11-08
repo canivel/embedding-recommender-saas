@@ -1,0 +1,326 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # PROMETHEUS - Metrics Collection and Storage
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    hostname: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert-rules.yml:/etc/prometheus/rules/alert-rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    environment:
+      TZ: UTC
+    networks:
+      - observability
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:9090']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================================================
+  # ALERTMANAGER - Alert Routing and Notifications
+  # ============================================================================
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    hostname: alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    environment:
+      TZ: UTC
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-http://localhost}
+      PAGERDUTY_SERVICE_KEY: ${PAGERDUTY_SERVICE_KEY:-your-key}
+    networks:
+      - observability
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:9093']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================================================
+  # GRAFANA - Visualization and Dashboards
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    hostname: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./grafana/provisioning/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_INSTALL_PLUGINS: grafana-piechart-panel,grafana-worldmap-panel
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_SERVER_ROOT_URL: http://localhost:3000
+      TZ: UTC
+    networks:
+      - observability
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================================================
+  # LOKI - Log Aggregation (Lightweight alternative to ELK)
+  # ============================================================================
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    hostname: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/local-config.yml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yml
+    environment:
+      TZ: UTC
+    networks:
+      - observability
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3100/ready']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================================================
+  # PROMTAIL - Log Shipper for Loki
+  # ============================================================================
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    hostname: promtail
+    volumes:
+      - ./loki/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    environment:
+      HOSTNAME: docker
+      TZ: UTC
+    networks:
+      - observability
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  # ============================================================================
+  # JAEGER - Distributed Tracing
+  # ============================================================================
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    hostname: jaeger
+    ports:
+      - "6831:6831/udp"  # Jaeger agent (compact)
+      - "6832:6832/udp"  # Jaeger agent (binary)
+      - "5775:5775/udp"  # Zipkin agent
+      - "14250:14250"    # gRPC
+      - "14268:14268"    # HTTP collector
+      - "14269:14269"    # Admin port / metrics
+      - "16686:16686"    # Jaeger UI
+    environment:
+      COLLECTOR_ZIPKIN_HTTP_PORT: 9411
+      COLLECTOR_OTLP_ENABLED: 'true'
+      TZ: UTC
+      MEMORY_MAX_TRACES: 10000
+      MEMORY_STORAGE_CONFIGURATION: '{"maxTraces": 10000}'
+    networks:
+      - observability
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:14269/']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================================================
+  # NODE EXPORTER - System Metrics
+  # ============================================================================
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    hostname: node-exporter
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    environment:
+      TZ: UTC
+    networks:
+      - observability
+    restart: unless-stopped
+
+  # ============================================================================
+  # CADVISOR - Container Metrics
+  # ============================================================================
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    hostname: cadvisor
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    environment:
+      TZ: UTC
+    networks:
+      - observability
+    privileged: true
+    restart: unless-stopped
+
+  # ============================================================================
+  # POSTGRES EXPORTER - PostgreSQL Metrics
+  # ============================================================================
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres-exporter
+    hostname: postgres-exporter
+    ports:
+      - "9187:9187"
+    environment:
+      DATA_SOURCE_NAME: ${POSTGRES_CONNECTION_STRING:-postgres://user:password@postgres:5432/postgres?sslmode=disable}
+      TZ: UTC
+    networks:
+      - observability
+    restart: unless-stopped
+    depends_on:
+      - postgres
+
+  # ============================================================================
+  # REDIS EXPORTER - Redis Metrics
+  # ============================================================================
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: redis-exporter
+    hostname: redis-exporter
+    ports:
+      - "9121:9121"
+    environment:
+      REDIS_ADDR: ${REDIS_ADDRESS:-redis:6379}
+      TZ: UTC
+    networks:
+      - observability
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+  # ============================================================================
+  # REDIS - Caching and Session Storage
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    hostname: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    environment:
+      TZ: UTC
+    networks:
+      - observability
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================================================
+  # POSTGRESQL - Primary Database
+  # ============================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    hostname: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      TZ: UTC
+    networks:
+      - observability
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================================================
+  # PROMETHEUS WEBHOOK RECEIVER (Optional - for testing alerts)
+  # ============================================================================
+  webhook-receiver:
+    image: curlimages/curl:latest
+    container_name: webhook-receiver
+    entrypoint: >
+      sh -c 'while true; do
+        nc -l -p 5000 -e cat;
+      done'
+    ports:
+      - "5000:5000"
+    networks:
+      - observability
+    restart: unless-stopped
+
+networks:
+  observability:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:
+  loki_data:
+  redis_data:
+  postgres_data:

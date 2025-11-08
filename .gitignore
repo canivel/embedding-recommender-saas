@@ -1,0 +1,202 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*~
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Claude Code settings (contains secrets)
+.claude/settings.local.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.hypothesis/
+*.mo
+*.pot
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# UV (Python package manager)
+.uv/
+uv.lock
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+.npm
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Next.js
+.next/
+out/
+.vercel
+*.tsbuildinfo
+next-env.d.ts
+
+# Production builds
+build/
+dist/
+*.min.js
+*.min.css
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Data and temporary files
+*.csv
+*.parquet
+*.pkl
+*.joblib
+sample_data/
+data/
+tmp/
+temp/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# ML Models and artifacts
+*.pth
+*.pt
+*.h5
+*.hdf5
+*.pkl
+*.joblib
+models/
+checkpoints/
+*.ckpt
+mlruns/
+wandb/
+
+# FAISS indices
+*.index
+*.bin
+*.faiss
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# Redis dump
+dump.rdb
+
+# Airflow
+airflow.db
+airflow.cfg
+logs/
+airflow-webserver.pid
+standalone_admin_password.txt
+webserver_config.py
+
+# Prometheus & Grafana
+prometheus_data/
+grafana_data/
+loki_data/
+
+# MinIO/S3 data
+minio_data/
+
+# Kubernetes secrets
+*-secret.yaml
+secrets/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Misc
+.cache/
+*.pid
+*.seed
+*.pid.lock
+.sass-cache/
+connect.lock
+typings/
+
+# Keep important empty directories
+!.gitkeep

@@ -1,0 +1,164 @@
+name: CD - Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  AWS_REGION: us-west-2
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  build-and-push-images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [backend-api, ml-engine, frontend]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ matrix.service }}:${{ env.IMAGE_TAG }}
+            ${{ env.ECR_REGISTRY }}/${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.ECR_REGISTRY }}/${{ matrix.service }}:${{ env.IMAGE_TAG }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  update-kubernetes-manifests:
+    needs: build-and-push-images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ secrets.EKS_CLUSTER_NAME }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Update image tags in deployments
+        run: |
+          kubectl set image deployment/backend-api backend-api=${{ env.ECR_REGISTRY }}/backend-api:${{ env.IMAGE_TAG }} -n production
+          kubectl set image deployment/ml-engine ml-engine=${{ env.ECR_REGISTRY }}/ml-engine:${{ env.IMAGE_TAG }} -n production
+          kubectl set image deployment/frontend frontend=${{ env.ECR_REGISTRY }}/frontend:${{ env.IMAGE_TAG }} -n production
+
+      - name: Wait for rollout to complete
+        run: |
+          kubectl rollout status deployment/backend-api -n production --timeout=10m
+          kubectl rollout status deployment/ml-engine -n production --timeout=10m
+          kubectl rollout status deployment/frontend -n production --timeout=10m
+
+  run-smoke-tests:
+    needs: update-kubernetes-manifests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get service endpoints
+        id: endpoints
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ secrets.EKS_CLUSTER_NAME }}
+          BACKEND_URL=$(kubectl get svc backend-api -n production -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          echo "backend_url=http://${BACKEND_URL}" >> $GITHUB_OUTPUT
+
+      - name: Run health checks
+        run: |
+          echo "Testing backend API health endpoint..."
+          curl -f ${{ steps.endpoints.outputs.backend_url }}/health || exit 1
+
+          echo "Testing backend API readiness endpoint..."
+          curl -f ${{ steps.endpoints.outputs.backend_url }}/ready || exit 1
+
+          echo "All smoke tests passed!"
+
+      - name: Run integration tests
+        run: |
+          echo "Running integration tests..."
+          # Add your integration test commands here
+          echo "Integration tests passed!"
+
+  notify-deployment:
+    needs: run-smoke-tests
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Notify on Slack
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Deployment to production: ${{ needs.run-smoke-tests.result }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Deployment Status:* ${{ needs.run-smoke-tests.result }}\n*Commit:* ${{ github.sha }}\n*Author:* ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

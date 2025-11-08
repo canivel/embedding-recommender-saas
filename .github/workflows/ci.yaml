@@ -1,0 +1,235 @@
+name: CI - Build and Test
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [develop]
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend-api: ${{ steps.changes.outputs.backend-api }}
+      ml-engine: ${{ steps.changes.outputs.ml-engine }}
+      frontend: ${{ steps.changes.outputs.frontend }}
+      airflow: ${{ steps.changes.outputs.airflow }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            backend-api:
+              - 'backend-api/**'
+            ml-engine:
+              - 'ml-engine/**'
+            frontend:
+              - 'frontend/**'
+            airflow:
+              - 'control-plane/airflow/**'
+
+  lint-backend-api:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend-api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          cd backend-api
+          pip install -r requirements.txt
+          pip install pylint black isort mypy
+      - name: Run black
+        run: cd backend-api && black --check .
+      - name: Run isort
+        run: cd backend-api && isort --check-only .
+      - name: Run pylint
+        run: cd backend-api && pylint **/*.py || true
+      - name: Run mypy
+        run: cd backend-api && mypy . || true
+
+  test-backend-api:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend-api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          cd backend-api
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio
+      - name: Run tests
+        run: |
+          cd backend-api
+          pytest --cov=. --cov-report=xml --cov-report=html
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend-api/coverage.xml
+          flags: backend-api
+
+  lint-ml-engine:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.ml-engine == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          cd ml-engine
+          pip install -r requirements.txt
+          pip install pylint black isort mypy
+      - name: Run black
+        run: cd ml-engine && black --check .
+      - name: Run isort
+        run: cd ml-engine && isort --check-only .
+      - name: Run pylint
+        run: cd ml-engine && pylint **/*.py || true
+
+  test-ml-engine:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.ml-engine == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          cd ml-engine
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      - name: Run tests
+        run: |
+          cd ml-engine
+          pytest --cov=. --cov-report=xml
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./ml-engine/coverage.xml
+          flags: ml-engine
+
+  lint-frontend:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: cd frontend && npm ci
+      - name: Run ESLint
+        run: cd frontend && npm run lint
+      - name: Run Prettier
+        run: cd frontend && npm run format:check
+
+  test-frontend:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: cd frontend && npm ci
+      - name: Run tests
+        run: cd frontend && npm test -- --coverage
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./frontend/coverage/lcov.info
+          flags: frontend
+
+  build-frontend:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: cd frontend && npm ci
+      - name: Build
+        run: cd frontend && npm run build
+
+  validate-airflow-dags:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.airflow == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install Airflow
+        run: |
+          pip install apache-airflow==2.7.3
+          pip install -r control-plane/airflow/requirements.txt
+      - name: Validate DAGs
+        run: |
+          export AIRFLOW_HOME=$(pwd)/control-plane/airflow
+          python -c "
+          import os
+          import sys
+          from airflow.models import DagBag
+
+          dag_bag = DagBag(dag_folder='control-plane/airflow/dags', include_examples=False)
+
+          if dag_bag.import_errors:
+              print('DAG import errors:')
+              for filename, error in dag_bag.import_errors.items():
+                  print(f'{filename}: {error}')
+              sys.exit(1)
+
+          print(f'Successfully loaded {len(dag_bag.dags)} DAGs')
+          for dag_id in dag_bag.dag_ids:
+              print(f'  - {dag_id}')
+          "
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'

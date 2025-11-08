@@ -1,0 +1,72 @@
+# Jaeger Configuration
+# This configuration deploys Jaeger for distributed tracing
+
+# Deployment mode: all-in-one for development/MVP
+# For production, consider separate collectors, query service, and storage backend
+
+# Agent configuration
+agent:
+  # Listening port for Jaeger agent
+  listen_address: '0.0.0.0:6831'
+  server:
+    queue_size: 2048
+  processor:
+    jaeger_compact:
+      server_port: 6831
+      workers: 10
+    jaeger_binary:
+      server_port: 6832
+      workers: 10
+    zipkin_compact:
+      server_port: 5775
+      workers: 10
+
+# Collector configuration
+collector:
+  http_server:
+    host_port: '0.0.0.0:14268'
+  grpc_server:
+    host_port: '0.0.0.0:14250'
+  num_workers: 10
+  queue_size: 5000
+
+# Query/UI service
+query:
+  host_port: '0.0.0.0:16686'
+  ui:
+    config_path: /etc/jaeger/ui-config.json
+
+# Storage configuration
+storage:
+  type: badger  # In-memory storage with BadgerDB (good for development)
+  badger:
+    directory_value: /badger/data
+    directory_key: /badger/key
+    span_store_ttl: 72h
+    log_level: info
+
+# Sampling configuration
+sampling:
+  type: const
+  param: 1  # 1.0 = 100% sampling (for development). Use lower value for high-throughput production
+
+# Memory limits
+memory:
+  max_traces: 10000
+
+# Metrics configuration
+metrics:
+  backend: prometheus
+  prometheus:
+    host_port: '0.0.0.0:14269'
+
+# Logging configuration
+logger:
+  level: info
+  format: json
+
+# Trace forwarding configuration (optional)
+# Can forward traces to Elasticsearch or other backends
+# Disabled for MVP
+trace_forwarding:
+  enabled: false

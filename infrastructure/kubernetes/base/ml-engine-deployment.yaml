@@ -1,0 +1,204 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-engine
+  namespace: production
+  labels:
+    app: ml-engine
+    tier: ml
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ml-engine
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: ml-engine
+        tier: ml
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: ml-engine
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: ml-engine
+          image: ml-engine:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: grpc
+              containerPort: 50051
+              protocol: TCP
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "50051"
+            - name: HTTP_PORT
+              value: "8080"
+            - name: ENVIRONMENT
+              value: "production"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: ml-engine-config
+                  key: postgres_host
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: ml-engine-config
+                  key: postgres_db
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: password
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: ml-engine-config
+                  key: redis_host
+            - name: REDIS_PORT
+              value: "6379"
+            - name: S3_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: ml-engine-config
+                  key: s3_bucket
+            - name: S3_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: ml-engine-config
+                  key: s3_endpoint
+            - name: AWS_REGION
+              value: "us-west-2"
+            - name: MODEL_CACHE_DIR
+              value: "/app/model-cache"
+            - name: FAISS_INDEX_DIR
+              value: "/app/faiss-indexes"
+            - name: MLFLOW_TRACKING_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: ml-engine-config
+                  key: mlflow_uri
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1000m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: model-cache
+              mountPath: /app/model-cache
+            - name: faiss-indexes
+              mountPath: /app/faiss-indexes
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: model-cache
+          emptyDir:
+            sizeLimit: 10Gi
+        - name: faiss-indexes
+          emptyDir:
+            sizeLimit: 5Gi
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - ml-engine
+                topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-engine
+  namespace: production
+  labels:
+    app: ml-engine
+spec:
+  type: ClusterIP
+  ports:
+    - name: grpc
+      port: 50051
+      targetPort: grpc
+      protocol: TCP
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    app: ml-engine
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ml-engine-config
+  namespace: production
+data:
+  postgres_host: "postgres.production.svc.cluster.local"
+  postgres_db: "embeddings_saas"
+  redis_host: "redis.production.svc.cluster.local"
+  s3_bucket: "embeddings-saas-data"
+  s3_endpoint: "http://minio.production.svc.cluster.local:9000"  # For local dev
+  mlflow_uri: "http://mlflow.production.svc.cluster.local:5000"
