@@ -1,0 +1,518 @@
+{
+	"info": {
+		"_postman_id": "embedding-recommender-saas-v1",
+		"name": "Embedding Recommender SaaS API",
+		"description": "Complete API collection for the Multi-tenant ML-powered Recommendation Platform",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "ml_engine_url",
+			"value": "http://localhost:8001",
+			"type": "string"
+		},
+		{
+			"key": "data_pipeline_url",
+			"value": "http://localhost:8002",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "tenant_id",
+			"value": "1129bd7c-7601-46a6-b2c0-a6e09937397c",
+			"type": "string"
+		},
+		{
+			"key": "user_id",
+			"value": "3340765d-a0ec-437f-9945-5c2550dc8dfb",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Backend API",
+			"item": [
+				{
+					"name": "Health & Status",
+					"item": [
+						{
+							"name": "Health Check",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/health",
+									"host": ["{{base_url}}"],
+									"path": ["health"]
+								},
+								"description": "Check if the Backend API is healthy and all dependencies are connected"
+							},
+							"response": []
+						},
+						{
+							"name": "Readiness Check",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/ready",
+									"host": ["{{base_url}}"],
+									"path": ["ready"]
+								},
+								"description": "Check if the service is ready to accept traffic"
+							},
+							"response": []
+						},
+						{
+							"name": "API Documentation",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/docs",
+									"host": ["{{base_url}}"],
+									"path": ["docs"]
+								},
+								"description": "Open Swagger UI documentation (use in browser)"
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Authentication",
+					"item": [
+						{
+							"name": "Login",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"// Auto-save tokens to collection variables",
+											"if (pm.response.code === 200) {",
+											"    const response = pm.response.json();",
+											"    pm.collectionVariables.set('access_token', response.access_token);",
+											"    pm.collectionVariables.set('refresh_token', response.refresh_token);",
+											"    pm.collectionVariables.set('tenant_id', response.user.tenant_id);",
+											"    pm.collectionVariables.set('user_id', response.user.id);",
+											"    console.log('✅ Tokens saved to collection variables');",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"email\": \"admin@demo.com\",\n  \"password\": \"demo123456\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/auth/login",
+									"host": ["{{base_url}}"],
+									"path": ["api", "v1", "auth", "login"]
+								},
+								"description": "Authenticate user and receive JWT access & refresh tokens.\n\nTest credentials:\n- Email: admin@demo.com\n- Password: demo123456\n\nTokens are automatically saved to collection variables."
+							},
+							"response": []
+						},
+						{
+							"name": "Refresh Token",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"// Auto-save new access token",
+											"if (pm.response.code === 200) {",
+											"    const response = pm.response.json();",
+											"    pm.collectionVariables.set('access_token', response.access_token);",
+											"    console.log('✅ New access token saved');",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/auth/refresh",
+									"host": ["{{base_url}}"],
+									"path": ["api", "v1", "auth", "refresh"]
+								},
+								"description": "Get a new access token using refresh token.\n\nRefresh token is automatically used from collection variables."
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Recommendations",
+					"item": [
+						{
+							"name": "Get Recommendations",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"user_id\": \"user_001\",\n  \"count\": 10,\n  \"filters\": {\n    \"category\": \"electronics\",\n    \"min_price\": 10,\n    \"max_price\": 1000\n  },\n  \"context\": {\n    \"device\": \"mobile\",\n    \"page\": \"homepage\"\n  }\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/recommendations",
+									"host": ["{{base_url}}"],
+									"path": ["api", "v1", "recommendations"]
+								},
+								"description": "Get personalized recommendations for a user.\n\nRequires authentication. Filters and context are optional."
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Data Upload",
+					"item": [
+						{
+							"name": "Upload Interactions CSV",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "file",
+											"type": "file",
+											"src": [],
+											"description": "CSV file with columns: user_id, item_id, interaction_type, timestamp, rating (optional), duration_seconds (optional)"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/data/upload/interactions",
+									"host": ["{{base_url}}"],
+									"path": ["api", "v1", "data", "upload", "interactions"]
+								},
+								"description": "Upload user interaction data as CSV.\n\nRequired columns: user_id, item_id, interaction_type, timestamp\nOptional columns: rating, duration_seconds"
+							},
+							"response": []
+						},
+						{
+							"name": "Upload Items CSV",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "file",
+											"type": "file",
+											"src": [],
+											"description": "CSV file with columns: item_id, name, category, price (optional), description (optional)"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/data/upload/items",
+									"host": ["{{base_url}}"],
+									"path": ["api", "v1", "data", "upload", "items"]
+								},
+								"description": "Upload item catalog data as CSV.\n\nRequired columns: item_id, name, category"
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "ML Engine",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{ml_engine_url}}/health",
+							"host": ["{{ml_engine_url}}"],
+							"path": ["health"]
+						},
+						"description": "Check if ML Engine is healthy"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Recommendations",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"user_id\": \"user_001\",\n  \"count\": 5,\n  \"filters\": {\n    \"category\": \"electronics\"\n  },\n  \"context\": {\n    \"page\": \"homepage\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{ml_engine_url}}/api/v1/recommend",
+							"host": ["{{ml_engine_url}}"],
+							"path": ["api", "v1", "recommend"]
+						},
+						"description": "Get ML-powered recommendations directly from ML Engine.\n\nRequires tenant_id for multi-tenant isolation."
+					},
+					"response": []
+				},
+				{
+					"name": "Trigger Model Training",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"model_type\": \"lightgcn\",\n  \"hyperparameters\": {\n    \"embedding_dim\": 64,\n    \"num_layers\": 3,\n    \"learning_rate\": 0.001,\n    \"batch_size\": 1024,\n    \"epochs\": 100\n  }\n}"
+						},
+						"url": {
+							"raw": "{{ml_engine_url}}/api/v1/train",
+							"host": ["{{ml_engine_url}}"],
+							"path": ["api", "v1", "train"]
+						},
+						"description": "Trigger ML model training for a tenant.\n\nHyperparameters are optional - defaults will be used if not provided."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Model Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{ml_engine_url}}/api/v1/models/{{tenant_id}}/latest",
+							"host": ["{{ml_engine_url}}"],
+							"path": ["api", "v1", "models", "{{tenant_id}}", "latest"]
+						},
+						"description": "Get information about the latest trained model for a tenant"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Data Pipeline",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{data_pipeline_url}}/health",
+							"host": ["{{data_pipeline_url}}"],
+							"path": ["health"]
+						},
+						"description": "Check if Data Pipeline is healthy and connected to Kafka & S3"
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Interactions",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": [],
+									"description": "CSV file with interaction data"
+								},
+								{
+									"key": "tenant_id",
+									"value": "{{tenant_id}}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{data_pipeline_url}}/api/v1/upload/interactions",
+							"host": ["{{data_pipeline_url}}"],
+							"path": ["api", "v1", "upload", "interactions"]
+						},
+						"description": "Upload interaction data CSV to Data Pipeline.\n\nFile will be validated and stored in S3."
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Items",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": [],
+									"description": "CSV file with item catalog data"
+								},
+								{
+									"key": "tenant_id",
+									"value": "{{tenant_id}}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{data_pipeline_url}}/api/v1/upload/items",
+							"host": ["{{data_pipeline_url}}"],
+							"path": ["api", "v1", "upload", "items"]
+						},
+						"description": "Upload item catalog CSV to Data Pipeline.\n\nFile will be validated and stored in S3."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Data Quality Metrics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{data_pipeline_url}}/api/v1/metrics/{{tenant_id}}/quality",
+							"host": ["{{data_pipeline_url}}"],
+							"path": ["api", "v1", "metrics", "{{tenant_id}}", "quality"]
+						},
+						"description": "Get data quality metrics for a tenant (freshness, completeness, validity)"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Monitoring",
+			"item": [
+				{
+					"name": "Prometheus Metrics",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:9090/api/v1/query?query=up",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "9090",
+							"path": ["api", "v1", "query"],
+							"query": [
+								{
+									"key": "query",
+									"value": "up"
+								}
+							]
+						},
+						"description": "Query Prometheus metrics. Change the 'query' parameter to get different metrics."
+					},
+					"response": []
+				},
+				{
+					"name": "Backend API Metrics",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/metrics",
+							"host": ["{{base_url}}"],
+							"path": ["metrics"]
+						},
+						"description": "Get Prometheus-formatted metrics from Backend API"
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
