@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from prometheus_client import Counter, Histogram, generate_latest
+from sqlalchemy import text
 import structlog
 
 from src.api.v1 import auth, recommendations, interactions, items, usage, api_keys
@@ -159,7 +160,7 @@ async def health_check() -> Dict:
     # Check database
     try:
         async with engine.connect() as conn:
-            await conn.execute("SELECT 1")
+            await conn.execute(text("SELECT 1"))
         checks["database"] = "healthy"
     except Exception as e:
         logger.error("database_health_check_failed", error=str(e))
@@ -214,7 +215,7 @@ async def readiness_check() -> Dict:
     # Check if database is accessible
     try:
         async with engine.connect() as conn:
-            await conn.execute("SELECT 1")
+            await conn.execute(text("SELECT 1"))
         return {"ready": True}
     except Exception:
         return {"ready": False}

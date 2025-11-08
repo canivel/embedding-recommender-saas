@@ -3,9 +3,18 @@ Data Validation using Great Expectations
 Validates interaction and item data quality
 """
 import great_expectations as ge
-from great_expectations.core.batch import RuntimeBatchRequest
-from great_expectations.data_context import BaseDataContext
-from great_expectations.data_context.types.base import DataContextConfig
+try:
+    from great_expectations.core.batch import RuntimeBatchRequest
+except ImportError:
+    RuntimeBatchRequest = None  # Placeholder for newer GE versions
+try:
+    from great_expectations.data_context import BaseDataContext
+except ImportError:
+    from great_expectations.data_context import AbstractDataContext as BaseDataContext
+try:
+    from great_expectations.data_context.types.base import DataContextConfig
+except ImportError:
+    DataContextConfig = None  # Placeholder for newer GE versions
 import pandas as pd
 from typing import Dict, List
 from enum import Enum

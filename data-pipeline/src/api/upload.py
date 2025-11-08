@@ -13,13 +13,10 @@ import os
 
 from ..validation.expectations import validate_dataframe, DataType
 from ..utils.storage import S3StorageClient
-from ..utils.metrics import DataIngestionMetrics
+from ..utils.metrics import metrics
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/internal/data", tags=["data-ingestion"])
-
-# Initialize metrics
-metrics = DataIngestionMetrics()
 
 
 class UploadResponse(BaseModel):

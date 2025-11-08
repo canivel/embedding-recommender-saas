@@ -132,11 +132,15 @@ class SampleDataGenerator:
         # Some items are much more popular than others
         item_popularity = np.random.zipf(1.5, len(item_ids))
         item_weights = item_popularity / item_popularity.sum()
+        # Ensure weights sum to exactly 1.0 to avoid floating point errors
+        item_weights = item_weights / item_weights.sum()
 
         # Generate Zipf distribution for users
         # Some users are much more active than others
         user_activity = np.random.zipf(1.3, len(user_ids))
         user_weights = user_activity / user_activity.sum()
+        # Ensure weights sum to exactly 1.0 to avoid floating point errors
+        user_weights = user_weights / user_weights.sum()
 
         # Generate timestamps over the last 90 days
         end_date = datetime.utcnow()

@@ -4,6 +4,8 @@ Pydantic schemas for request/response validation.
 This module defines all API schemas following the API contracts.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -29,7 +31,7 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     expires_in: int
-    user: "UserResponse"
+    user: UserResponse
 
 
 class RefreshTokenRequest(BaseModel):
@@ -329,3 +331,7 @@ class ErrorResponse(BaseModel):
     details: Optional[ErrorDetail] = None
     request_id: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+# Rebuild models with forward references after all classes are defined
+TokenResponse.model_rebuild()
