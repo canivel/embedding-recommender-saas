@@ -17,7 +17,7 @@ python-multipart==0.0.6
 bcrypt==4.1.2
 
 # Redis
-redis==5.0.1
+redis==7.0.1
 aioredis==2.0.1
 
 # HTTP Client
