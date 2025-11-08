@@ -145,7 +145,7 @@ jobs:
     if: always()
     steps:
       - name: Notify on Slack
-        uses: slackapi/slack-github-action@v1
+        uses: slackapi/slack-github-action@v2
         with:
           payload: |
             {
