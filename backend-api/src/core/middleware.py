@@ -37,6 +37,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
         if request.url.path in ["/docs", "/redoc", "/openapi.json"]:
             return await call_next(request)
 
+        # Skip authentication for auth endpoints (login, refresh)
+        if request.url.path in ["/api/v1/auth/login", "/api/v1/auth/refresh"]:
+            return await call_next(request)
+
         # Extract authentication
         tenant_id, user_id, api_key_id = await self._extract_auth(request)
 
