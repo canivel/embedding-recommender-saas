@@ -1,12 +1,60 @@
 import React from 'react';
 import { clsx } from 'clsx';
 
-interface TableProps {
+// Generic table with columns and data
+interface Column<T> {
+  header: string;
+  accessor: keyof T;
+  render?: (value: any, row: T) => React.ReactNode;
+}
+
+interface TableProps<T = any> {
+  columns: Column<T>[];
+  data: T[];
+  className?: string;
+}
+
+export function Table<T extends Record<string, any>>({ columns, data, className }: TableProps<T>) {
+  return (
+    <div className="overflow-x-auto">
+      <table className={clsx('min-w-full divide-y divide-gray-200', className)}>
+        <thead className="bg-gray-50">
+          <tr>
+            {columns.map((column, idx) => (
+              <th
+                key={idx}
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                {column.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {data.map((row, rowIdx) => (
+            <tr key={rowIdx} className="hover:bg-gray-50">
+              {columns.map((column, colIdx) => (
+                <td key={colIdx} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {column.render
+                    ? column.render(row[column.accessor], row)
+                    : String(row[column.accessor])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Composable table components
+interface BaseTableProps {
   children: React.ReactNode;
   className?: string;
 }
 
-export function Table({ children, className }: TableProps) {
+export function TableContainer({ children, className }: BaseTableProps) {
   return (
     <div className="overflow-x-auto">
       <table className={clsx('min-w-full divide-y divide-gray-200', className)}>
@@ -16,12 +64,7 @@ export function Table({ children, className }: TableProps) {
   );
 }
 
-interface TableHeaderProps {
-  children: React.ReactNode;
-  className?: string;
-}
-
-export function TableHeader({ children, className }: TableHeaderProps) {
+export function TableHeader({ children, className }: BaseTableProps) {
   return (
     <thead className={clsx('bg-gray-50', className)}>
       {children}
@@ -29,12 +72,7 @@ export function TableHeader({ children, className }: TableHeaderProps) {
   );
 }
 
-interface TableBodyProps {
-  children: React.ReactNode;
-  className?: string;
-}
-
-export function TableBody({ children, className }: TableBodyProps) {
+export function TableBody({ children, className }: BaseTableProps) {
   return (
     <tbody className={clsx('bg-white divide-y divide-gray-200', className)}>
       {children}
@@ -42,9 +80,7 @@ export function TableBody({ children, className }: TableBodyProps) {
   );
 }
 
-interface TableRowProps {
-  children: React.ReactNode;
-  className?: string;
+interface TableRowProps extends BaseTableProps {
   onClick?: () => void;
 }
 
@@ -59,9 +95,7 @@ export function TableRow({ children, className, onClick }: TableRowProps) {
   );
 }
 
-interface TableHeadProps {
-  children: React.ReactNode;
-  className?: string;
+interface TableHeadProps extends BaseTableProps {
   sortable?: boolean;
   onSort?: () => void;
 }
@@ -88,12 +122,7 @@ export function TableHead({ children, className, sortable, onSort }: TableHeadPr
   );
 }
 
-interface TableCellProps {
-  children: React.ReactNode;
-  className?: string;
-}
-
-export function TableCell({ children, className }: TableCellProps) {
+export function TableCell({ children, className }: BaseTableProps) {
   return (
     <td className={clsx('px-6 py-4 whitespace-nowrap text-sm text-gray-900', className)}>
       {children}

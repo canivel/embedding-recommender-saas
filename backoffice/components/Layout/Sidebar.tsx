@@ -16,6 +16,9 @@ import {
   Menu,
   X,
   ShieldAlert,
+  Flag,
+  Database,
+  GitBranch,
 } from 'lucide-react';
 
 interface NavItem {
@@ -39,10 +42,28 @@ const NAV_ITEMS: NavItem[] = [
     permission: 'view_tenants',
   },
   {
-    label: 'Audit Logs',
-    href: '/audit-logs',
-    icon: <FileText size={20} />,
-    permission: 'view_audit_logs',
+    label: 'Support Dashboard',
+    href: '/support',
+    icon: <Activity size={20} />,
+    permission: 'view_tenants',
+  },
+  {
+    label: 'Model Management',
+    href: '/models',
+    icon: <GitBranch size={20} />,
+    permission: 'trigger_training',
+  },
+  {
+    label: 'Data Quality',
+    href: '/data-quality',
+    icon: <Database size={20} />,
+    permission: 'view_analytics',
+  },
+  {
+    label: 'Feature Flags',
+    href: '/features',
+    icon: <Flag size={20} />,
+    permission: 'view_analytics',
   },
   {
     label: 'System Monitoring',
@@ -51,10 +72,10 @@ const NAV_ITEMS: NavItem[] = [
     permission: 'view_system_health',
   },
   {
-    label: 'Support Dashboard',
-    href: '/support',
-    icon: <Activity size={20} />,
-    permission: 'view_tenants',
+    label: 'Audit Logs',
+    href: '/audit-logs',
+    icon: <FileText size={20} />,
+    permission: 'view_audit_logs',
   },
 ];
 

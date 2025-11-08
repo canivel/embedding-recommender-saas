@@ -4,15 +4,23 @@ This is the Internal Back Office application for the Embedding Recommender SaaS 
 
 ## Features
 
-### Phase 1: Foundation (Completed)
+### Core Features (Completed)
 
-- **SSO Authentication** - Google Workspace mock integration with role-based access control
+- **SSO Authentication** - Google Workspace/Okta integration with role-based access control
 - **Tenant Management** - List, create, edit, and suspend/activate tenants
 - **Audit Logs** - Searchable, filterable activity logs with CSV export
 - **Support Dashboard** - Monitor tenant health scores, error rates, and latency
 - **System Monitoring** - Real-time service health and performance metrics
 - **Tenant Impersonation** - Debug tenants by assuming their identity (with audit logging)
 - **Role-Based Access Control** - Super Admin, Support, Developer roles with fine-grained permissions
+
+### Advanced Features (Completed)
+
+- **Model Management** - Train, deploy, and rollback ML models with version control
+- **A/B Testing** - Run and monitor model performance comparisons
+- **Data Quality Monitoring** - Track validation errors, data freshness, and anomalies
+- **Feature Flags** - Gradual rollout controls and kill switches for incidents
+- **Real-time Metrics** - Performance charts, error tracking, and tenant analytics
 
 ### Demo Accounts
 
@@ -308,18 +316,37 @@ The application includes:
 - Performance monitoring (Lighthouse scores >90)
 - Error tracking (integrate with Sentry, DataDog, etc.)
 
-## Future Enhancements (Phase 2-3)
+#### Model Management
+- View all model versions across tenants
+- Deploy models with traffic percentage control
+- Compare model performance metrics
+- Create and manage A/B tests
+- Rollback to previous versions
+- Monitor training progress
 
-- Data quality dashboards
-- Feature flag management UI
-- Advanced analytics
-- Custom reporting
-- Real Grafana dashboard integration
+#### Data Quality
+- Track validation errors by tenant
+- Monitor data freshness metrics
+- View anomaly detection alerts
+- Trigger data cleanup jobs
+- Export error reports
+
+#### Feature Flags
+- Create and manage feature flags
+- Set rollout percentages
+- Target specific tenants
+- Toggle flags on/off
+- Track flag usage
+
+## Future Enhancements
+
+- Real Grafana dashboard integration (iframe embedding)
+- Advanced custom reporting
 - Multi-language support
 - Dark mode theme
-- Advanced search with filters
-- Batch operations
+- Batch tenant operations
 - Webhooks management
+- Advanced SQL query tool for support
 
 ## Testing
 

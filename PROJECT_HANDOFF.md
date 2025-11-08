@@ -129,8 +129,8 @@ open http://localhost:8000/docs  # API docs
 
 | Component | Technology | Port | Status |
 |-----------|-----------|------|--------|
-| **Customer Dashboard** | Next.js 14 | 3000 | ✅ 6 pages, responsive |
-| **Admin Back Office** | Next.js 14 | 3002 | ✅ Tenant management, monitoring |
+| **Customer Dashboard** | Next.js 14 | 3000 | ✅ 9 pages, full auth, responsive, production-ready |
+| **Admin Back Office** | Next.js 14 | 3002 | ✅ 8 pages, RBAC, tenant mgmt, monitoring, audit logs |
 
 ### Infrastructure Services
 
