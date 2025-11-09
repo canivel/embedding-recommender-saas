@@ -15,7 +15,7 @@ from prometheus_client import Counter, Histogram, generate_latest
 from sqlalchemy import text
 import structlog
 
-from src.api.v1 import auth, recommendations, interactions, items, usage, api_keys
+from src.api.v1 import auth, recommendations, interactions, items, usage, api_keys, datasets
 from src.api.admin import tenants
 from src.core.config import settings
 from src.core.middleware import (
@@ -237,6 +237,7 @@ app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
 app.include_router(recommendations.router, prefix="/api/v1", tags=["recommendations"])
 app.include_router(interactions.router, prefix="/api/v1", tags=["interactions"])
 app.include_router(items.router, prefix="/api/v1", tags=["items"])
+app.include_router(datasets.router, prefix="/api/v1", tags=["datasets"])
 app.include_router(usage.router, prefix="/api/v1", tags=["usage"])
 app.include_router(api_keys.router, prefix="/api/v1", tags=["api-keys"])
 

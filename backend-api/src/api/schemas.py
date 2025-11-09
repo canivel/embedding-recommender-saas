@@ -292,6 +292,156 @@ class CreateAPIKeyResponse(BaseModel):
 
 
 # ============================================================================
+# Dataset Schemas
+# ============================================================================
+
+
+class ColumnMapping(BaseModel):
+    """Column mapping configuration for flexible event schema."""
+
+    user_column: str = Field(..., description="Column name for user identifier")
+    item_column: str = Field(..., description="Column name for item identifier")
+    timestamp_column: str = Field(..., description="Column name for event timestamp")
+    session_column: Optional[str] = Field(None, description="Optional column name for session identifier")
+    target_column: Optional[str] = Field(None, description="Optional column name for target outcome")
+
+
+class SessionConfig(BaseModel):
+    """Session detection configuration."""
+
+    auto_detect: bool = Field(True, description="Auto-detect session boundaries based on timeout")
+    timeout_minutes: int = Field(30, ge=1, le=1440, description="Inactivity timeout in minutes for session detection")
+
+
+class DatasetCreate(BaseModel):
+    """Create dataset request schema."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    column_mapping: ColumnMapping
+    session_config: SessionConfig = Field(default_factory=lambda: SessionConfig())
+
+
+class DatasetUpdate(BaseModel):
+    """Update dataset request schema."""
+
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    column_mapping: Optional[ColumnMapping] = None
+    session_config: Optional[SessionConfig] = None
+    status: Optional[str] = Field(None, pattern="^(active|archived)$")
+
+
+class DatasetStats(BaseModel):
+    """Dataset statistics."""
+
+    upload_count: int
+    total_events: int
+    total_sessions: int
+    unique_users: int
+    unique_items: int
+
+
+class DatasetResponse(BaseModel):
+    """Dataset response schema."""
+
+    id: UUID
+    tenant_id: UUID
+    name: str
+    description: Optional[str]
+    column_mapping: Dict[str, Any]
+    session_config: Dict[str, Any]
+    upload_count: int
+    total_events: int
+    total_sessions: int
+    unique_users: int
+    unique_items: int
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    last_upload_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+class DatasetListResponse(BaseModel):
+    """List of datasets response."""
+
+    datasets: List[DatasetResponse]
+    total: int
+
+
+class DatasetUploadResponse(BaseModel):
+    """Dataset upload response schema."""
+
+    id: UUID
+    dataset_id: UUID
+    filename: str
+    file_size_bytes: Optional[int]
+    row_count: int
+    accepted: int
+    rejected: int
+    validation_errors: Optional[List[Dict[str, Any]]]
+    status: str
+    uploaded_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DatasetUploadListResponse(BaseModel):
+    """List of dataset uploads response."""
+
+    uploads: List[DatasetUploadResponse]
+    total: int
+
+
+class EventsQueryRequest(BaseModel):
+    """Query events request schema."""
+
+    limit: int = Field(default=100, ge=1, le=1000)
+    offset: int = Field(default=0, ge=0)
+    user_id: Optional[str] = None
+    item_id: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    session_id: Optional[str] = None
+
+
+class EventRecord(BaseModel):
+    """Single event record."""
+
+    user_id: str
+    item_id: str
+    timestamp: datetime
+    session_id: Optional[str]
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class EventsQueryResponse(BaseModel):
+    """Query events response schema."""
+
+    events: List[EventRecord]
+    total: int
+    limit: int
+    offset: int
+
+
+class EventsStatsResponse(BaseModel):
+    """Events statistics response."""
+
+    total_events: int
+    unique_users: int
+    unique_items: int
+    unique_sessions: int
+    date_range: Dict[str, datetime]
+    top_items: List[Dict[str, Any]]
+    top_users: List[Dict[str, Any]]
+    hourly_distribution: Dict[int, int]
+
+
+# ============================================================================
 # Health Schemas
 # ============================================================================
 

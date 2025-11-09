@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     DEFAULT_RATE_LIMIT_PER_DAY: int = 1000000
 
     # CORS
-    CORS_ORIGINS: list = ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003", "http://localhost:8080"]
+    CORS_ORIGINS: list = ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003", "http://localhost:3004", "http://localhost:8080"]
     CORS_ALLOW_CREDENTIALS: bool = True
     CORS_ALLOW_METHODS: list = ["*"]
     CORS_ALLOW_HEADERS: list = ["*"]
@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     DATA_PIPELINE_URL: str = "http://localhost:8002"
     ML_ENGINE_TIMEOUT: int = 10
     DATA_PIPELINE_TIMEOUT: int = 30
+
+    # Data Storage
+    DATA_STORAGE_PATH: str = "/tmp/embedding-recommender-data"
 
     # Logging
     LOG_LEVEL: str = "INFO"

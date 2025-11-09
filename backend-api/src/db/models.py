@@ -12,6 +12,7 @@ from sqlalchemy import (
     BigInteger,
     CheckConstraint,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -65,6 +66,9 @@ class Tenant(Base):
     )
     rate_limit = relationship(
         "RateLimit", back_populates="tenant", uselist=False, cascade="all, delete-orphan"
+    )
+    datasets = relationship(
+        "Dataset", back_populates="tenant", cascade="all, delete-orphan"
     )
 
     __table_args__ = (
@@ -209,3 +213,273 @@ class RateLimit(Base):
 
     def __repr__(self):
         return f"<RateLimit(tenant_id={self.tenant_id}, rpm={self.requests_per_minute})>"
+
+
+class Dataset(Base):
+    """
+    Dataset model for flexible event schema management.
+    Each dataset can have its own column mappings and session configuration.
+    """
+
+    __tablename__ = "datasets"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id = Column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+
+    # Flexible column mapping
+    column_mapping = Column(JSONB, nullable=False)
+    # Structure: {"user_column": "customer_id", "item_column": "product_id", ...}
+
+    # Session detection configuration
+    session_config = Column(
+        JSONB,
+        nullable=False,
+        default=lambda: {"auto_detect": True, "timeout_minutes": 30}
+    )
+    # Structure: {"auto_detect": true, "timeout_minutes": 30}
+
+    # Statistics
+    upload_count = Column(Integer, default=0)
+    total_events = Column(BigInteger, default=0)
+    total_sessions = Column(BigInteger, default=0)
+    unique_users = Column(Integer, default=0)
+    unique_items = Column(Integer, default=0)
+
+    # Status
+    status = Column(
+        String(50),
+        nullable=False,
+        default="active",
+        index=True
+    )
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    last_upload_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    tenant = relationship("Tenant", back_populates="datasets")
+    uploads = relationship(
+        "DatasetUpload", back_populates="dataset", cascade="all, delete-orphan"
+    )
+    events_metadata = relationship(
+        "EventsMetadata", back_populates="dataset", cascade="all, delete-orphan"
+    )
+    user_sessions = relationship(
+        "UserSession", back_populates="dataset", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('active', 'archived', 'processing')",
+            name="check_dataset_status_valid"
+        ),
+        Index("idx_datasets_tenant", "tenant_id"),
+        Index("idx_datasets_status", "status"),
+        Index("idx_datasets_updated", "updated_at"),
+        Index("idx_datasets_tenant_name", "tenant_id", "name", unique=True),
+    )
+
+    def __repr__(self):
+        return f"<Dataset(id={self.id}, name='{self.name}', total_events={self.total_events})>"
+
+
+class DatasetUpload(Base):
+    """
+    Upload history for datasets.
+    Tracks all file uploads with detailed metadata and validation results.
+    """
+
+    __tablename__ = "dataset_uploads"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    dataset_id = Column(
+        UUID(as_uuid=True), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False
+    )
+    tenant_id = Column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # File information
+    filename = Column(String(255), nullable=False)
+    file_size_bytes = Column(BigInteger, nullable=True)
+    s3_path = Column(String(512), nullable=False)
+
+    # Processing results
+    row_count = Column(Integer, nullable=False)
+    accepted = Column(Integer, nullable=False, default=0)
+    rejected = Column(Integer, nullable=False, default=0)
+    validation_errors = Column(JSONB, nullable=True)
+    # Structure: [{"row": 42, "error": "Missing timestamp", "column": "event_time"}]
+
+    # Status
+    status = Column(
+        String(50),
+        nullable=False,
+        default="completed",
+        index=True
+    )
+    error_message = Column(Text, nullable=True)
+
+    # Processing time
+    processing_started_at = Column(DateTime(timezone=True), nullable=True)
+    processing_completed_at = Column(DateTime(timezone=True), nullable=True)
+    processing_duration_ms = Column(Integer, nullable=True)
+
+    # Timestamps
+    uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Metadata
+    uploaded_by = Column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    notes = Column(Text, nullable=True)
+
+    # Relationships
+    dataset = relationship("Dataset", back_populates="uploads")
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'processing', 'completed', 'failed')",
+            name="check_upload_status_valid"
+        ),
+        Index("idx_dataset_uploads_dataset", "dataset_id"),
+        Index("idx_dataset_uploads_tenant", "tenant_id"),
+        Index("idx_dataset_uploads_status", "status"),
+        Index("idx_dataset_uploads_date", "uploaded_at"),
+    )
+
+    def __repr__(self):
+        return f"<DatasetUpload(id={self.id}, filename='{self.filename}', status='{self.status}')>"
+
+
+class EventsMetadata(Base):
+    """
+    Aggregated metadata for event partitions.
+    Enables fast queries without scanning Parquet files.
+    """
+
+    __tablename__ = "events_metadata"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    dataset_id = Column(
+        UUID(as_uuid=True), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False
+    )
+    tenant_id = Column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # Partition information
+    partition_date = Column(Date, nullable=False)
+    partition_path = Column(String(512), nullable=False)
+
+    # Counts
+    event_count = Column(Integer, nullable=False)
+    unique_users = Column(Integer, nullable=False)
+    unique_items = Column(Integer, nullable=False)
+    session_count = Column(Integer, nullable=True)
+
+    # Flexible statistics
+    stats = Column(JSONB, nullable=True)
+    # Structure: {
+    #   "avg_session_length": 5.2,
+    #   "median_session_duration_minutes": 12.5,
+    #   "top_items": [{"item_id": "X", "count": 100}, ...],
+    #   "hourly_distribution": {0: 50, 1: 30, ..., 23: 100}
+    # }
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    # Relationships
+    dataset = relationship("Dataset", back_populates="events_metadata")
+
+    __table_args__ = (
+        Index("idx_events_metadata_dataset", "dataset_id"),
+        Index("idx_events_metadata_tenant", "tenant_id"),
+        Index("idx_events_metadata_date", "partition_date"),
+        Index("idx_events_metadata_dataset_date", "dataset_id", "partition_date", unique=True),
+    )
+
+    def __repr__(self):
+        return f"<EventsMetadata(id={self.id}, date={self.partition_date}, events={self.event_count})>"
+
+
+class UserSession(Base):
+    """
+    User session state for real-time recommendations.
+    Stores recent item sequences and computed features in Redis-like fashion.
+    """
+
+    __tablename__ = "user_sessions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    dataset_id = Column(
+        UUID(as_uuid=True), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False
+    )
+    tenant_id = Column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # User identification
+    user_id = Column(String(255), nullable=False)
+    session_id = Column(String(255), nullable=True)
+
+    # Sequence data
+    recent_items = Column(JSONB, nullable=False, default=list)
+    # Structure: [
+    #   {"item_id": "A", "timestamp": "2025-11-08T10:00:00", "position": 1},
+    #   {"item_id": "B", "timestamp": "2025-11-08T10:05:00", "position": 2}
+    # ]
+
+    # Session metadata
+    session_start = Column(DateTime(timezone=True), nullable=False)
+    last_activity = Column(DateTime(timezone=True), nullable=False, index=True)
+    event_count = Column(Integer, default=0)
+
+    # Computed features
+    features = Column(JSONB, nullable=True)
+    # Structure: {
+    #   "hour_of_day": 14,
+    #   "day_of_week": 3,
+    #   "avg_time_between_events": 5.2,
+    #   "session_duration_minutes": 15
+    # }
+
+    # TTL management
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    # Relationships
+    dataset = relationship("Dataset", back_populates="user_sessions")
+
+    __table_args__ = (
+        Index("idx_user_sessions_dataset", "dataset_id"),
+        Index("idx_user_sessions_tenant", "tenant_id"),
+        Index("idx_user_sessions_user", "dataset_id", "user_id"),
+        Index("idx_user_sessions_expires", "expires_at"),
+        Index("idx_user_sessions_activity", "last_activity"),
+        Index(
+            "idx_user_sessions_unique",
+            "dataset_id", "user_id", "session_id",
+            unique=True
+        ),
+    )
+
+    def __repr__(self):
+        return f"<UserSession(id={self.id}, user_id='{self.user_id}', events={self.event_count})>"

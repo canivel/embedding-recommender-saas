@@ -29,6 +29,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        # Skip authentication for CORS preflight requests
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         # Skip authentication for health and metrics endpoints
         if request.url.path in ["/health", "/ready", "/metrics"]:
             return await call_next(request)

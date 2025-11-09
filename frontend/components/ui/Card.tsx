@@ -40,6 +40,15 @@ export function CardTitle({ children, className }: CardTitleProps) {
   return <h3 className={clsx('text-lg font-semibold text-gray-900', className)}>{children}</h3>;
 }
 
+interface CardDescriptionProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function CardDescription({ children, className }: CardDescriptionProps) {
+  return <p className={clsx('text-sm text-gray-600 mt-1', className)}>{children}</p>;
+}
+
 interface CardContentProps {
   children: React.ReactNode;
   className?: string;

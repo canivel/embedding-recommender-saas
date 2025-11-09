@@ -22,7 +22,7 @@ interface SidebarProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Data', href: '/data', icon: Database },
+  { name: 'Datasets', href: '/datasets', icon: Database },
   { name: 'API Keys', href: '/api-keys', icon: Key },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Settings', href: '/settings', icon: Settings },

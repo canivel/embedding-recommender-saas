@@ -167,3 +167,6 @@ export interface ApiError {
     timestamp: string;
   };
 }
+
+// Re-export dataset types
+export * from './dataset';
