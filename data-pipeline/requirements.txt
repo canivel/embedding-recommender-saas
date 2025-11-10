@@ -31,7 +31,7 @@ psycopg2-binary==2.9.9
 sqlalchemy==2.0.23
 
 # Monitoring
-prometheus-client==0.19.0
+prometheus-client==0.23.1
 
 # Utilities
 python-dotenv==1.0.0
